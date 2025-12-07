@@ -1,0 +1,118 @@
+nano bot.py ~/meu_bot
+
+
+
+
+import telebot
+from telebot import types
+import random
+from googleapiclient.discovery import build
+from pytube import YouTube
+import os
+
+# =========================
+# CONFIGURAÇÕES
+# =========================
+TELEGRAM_TOKEN = "8539746186:AAEbpwMA2UEMyOdLRUVrdkY2FYpQsfBGsPk"
+YOUTUBE_API_KEY = "AIzaSyDLPF23nuUv6xwgE4JQx5NekWxiSatgn0k"
+
+bot = telebot.TeleBot(TELEGRAM_TOKEN)
+youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
+
+# =========================
+# /start
+# =========================
+@bot.message_handler(commands=['start'])
+def start(message):
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("📱 Gerar Número", callback_data="gerar"))
+    markup.add(types.InlineKeyboardButton("🎬 Baixar YouTube", callback_data="baixar"))
+    markup.add(types.InlineKeyboardButton("🌐 Redes Sociais", callback_data="redes"))
+
+    texto = (
+        "Olá! Eu posso fazer várias coisas:\n\n"
+        "Escolha uma opção abaixo 👇"
+    )
+    bot.send_message(message.chat.id, texto, reply_markup=markup)
+
+# =========================
+# Callback de botões
+# =========================
+@bot.callback_query_handler(func=lambda call: True)
+def callback_buttons(call):
+    if call.data == "gerar":
+        gerar_numero(call.message)
+    elif call.data == "baixar":
+        bot.send_message(call.message.chat.id, "Digite /baixar seguido do nome do vídeo.\nEx: /baixar música de exemplo")
+    elif call.data == "redes":
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("YouTube", url="https://youtube.com/@karmaico7k?si=AGiEEFpWrcE7uSVu"))
+        markup.add(types.InlineKeyboardButton("TikTok", url="https://www.tiktok.com/@karmaico.007"))
+        bot.send_message(call.message.chat.id, "🌐 Siga minhas redes sociais 👇", reply_markup=markup)
+
+# =========================
+# /gerar - números brasileiros
+# =========================
+def gerar_numero(message):
+    ddd = random.choice([
+        11,12,13,14,15,16,17,18,19,
+        21,22,24,27,28,
+        31,32,33,34,35,37,38,
+        41,42,43,44,45,46,
+        47,48,49,
+        51,53,54,55,
+        61,62,64,63,65,66,67,68,69,
+        71,73,74,75,77,79,
+        81,82,83,84,85,86,87,88,89,
+        91,92,93,94,95,96,97,98,99
+    ])
+    numero = f"{ddd} 9{random.randint(1000, 9999)}-{random.randint(1000, 9999)}"
+    bot.send_message(message.chat.id, f"📱 Número gerado:\n`{numero}`", parse_mode="Markdown")
+
+# =========================
+# /baixar - buscar e baixar vídeo pelo nome
+# =========================
+@bot.message_handler(commands=['baixar'])
+def baixar_video_nome(message):
+    query = message.text.replace("/baixar", "").strip()
+    if not query:
+        bot.send_message(message.chat.id, "Digite o nome do vídeo após o comando.")
+        return
+
+    try:
+        # Busca o vídeo no YouTube
+        request = youtube.search().list(
+            part="snippet",
+            q=query,
+            type="video",
+            maxResults=1
+        )
+        response = request.execute()
+
+        if not response["items"]:
+            bot.send_message(message.chat.id, "Nenhum vídeo encontrado 😕")
+            return
+
+        video_id = response["items"][0]["id"]["videoId"]
+        titulo = response["items"][0]["snippet"]["title"]
+        link = f"https://www.youtube.com/watch?v={video_id}"
+
+        bot.send_message(message.chat.id, f"🎬 Baixando: *{titulo}*\n{link}", parse_mode="Markdown")
+
+        # Baixar o vídeo
+        yt = YouTube(link)
+        stream = yt.streams.get_highest_resolution()
+        arquivo = stream.download()
+
+        with open(arquivo, "rb") as f:
+            bot.send_video(message.chat.id, f)
+
+        os.remove(arquivo)
+
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Erro ao baixar vídeo:\n{e}")
+
+# =========================
+# Iniciar bot
+# =========================
+bot.polling()
